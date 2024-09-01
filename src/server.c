@@ -86,9 +86,10 @@ int main(int argc, char const* argv[])
         printf("Failed to create socket. Exiting...\n");
         return EXIT_FAILURE;
     }
+
     // Bind the socket to port 8080
     bindSocket(sockfd, 8080);
-
+    
     // Clean up: Close the socket
     close(sockfd);
 
