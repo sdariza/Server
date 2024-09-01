@@ -1,22 +1,20 @@
+#include <netinet/in.h>
 #include <stdio.h>
-#include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-// #include <arpa/inet.h>  // For inet_ntoa
-#include <unistd.h>     // For close()
-#include <stdlib.h>     // For EXIT_FAILURE and EXIT_SUCCESS
+#include <unistd.h>
+#include <arpa/inet.h>  // For inet_ntoa
 #include <asm-generic/socket.h>
 
-
+#define PORT 9092
 /**
  * The function createSocket creates a socket with the specified domain, type, and protocol, and
  * returns the socket file descriptor.
- * 
+ *
  * @param domain The `domain` parameter in the `createSocket` function specifies the communication
  * domain in which the socket will be created. It defines the communication protocol family to be used,
- * such as AF_INET for IPv4 communication or AF_INET6 for IPv6 communication.
+ * such as PF_INET for IPv4 communication or PF_INET6 for IPv6 communication.
  * @param type The `type` parameter in the `createSocket` function specifies the communication
  * semantics to be used by the socket. It can have values such as `SOCK_STREAM` for a stream socket
  * (TCP) or `SOCK_DGRAM` for a datagram socket (UDP).
@@ -24,7 +22,7 @@
  * be used with the socket. It specifies a particular protocol to be used with the socket, such as TCP
  * (Transmission Control Protocol) or UDP (User Datagram Protocol). The protocol parameter can be set
  * to 0 to automatically
- * 
+ *
  * @return The function `createSocket` returns an integer value, which is the socket file descriptor.
  * If the socket creation is successful, it returns the socket file descriptor. If there is an error
  * during socket creation, it returns -1.
@@ -44,7 +42,7 @@ int createSocket(int domain, int type, int protocol)
 /**
  * The function `bindSocket` binds a socket to a specified port with the option to reuse address and
  * port.
- * 
+ *
  * @param socketfd The `socketfd` parameter in the `bindSocket` function is the file descriptor of the
  * socket that you want to bind to a specific port. This file descriptor is obtained when you create a
  * socket using the `socket` system call. It uniquely identifies the socket in the operating system.
@@ -65,33 +63,60 @@ void bindSocket(int socketfd, unsigned short port) {
 
     struct sockaddr_in server_add;
     memset(&server_add, 0, sizeof(server_add)); // Clear structure
-    server_add.sin_family = AF_INET;            // IPv4
+    server_add.sin_family = PF_INET;            // IPv4
     server_add.sin_port = htons(port);          // Set port
-    server_add.sin_addr.s_addr = INADDR_ANY;    // Bind to any available interface
+    server_add.sin_addr.s_addr = htonl(INADDR_ANY);    // Bind to any available interface
 
     // Bind the socket to the specified port
-    if (bind(socketfd, (struct sockaddr*)&server_add, sizeof(server_add)) < 0) {
-        fprintf(stderr, "Error binding socket: %s\n", strerror(errno));
+    int socket_bind = bind(socketfd, (struct sockaddr*)&server_add, sizeof(server_add));
+
+    if (socket_bind < 0) {
+        perror("Error binding the socker");
         close(socketfd);
         exit(EXIT_FAILURE);
     }
     printf("Socket bound successfully to port %d\n", port);
 }
 
+
+
 int main(int argc, char const* argv[])
 {
     // Create a socket
-    int sockfd = createSocket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = createSocket(PF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         printf("Failed to create socket. Exiting...\n");
         return EXIT_FAILURE;
     }
 
     // Bind the socket to port 8080
-    bindSocket(sockfd, 8080);
-    
+    bindSocket(sockfd, PORT);
+
+    // listen socket
+    if (listen(sockfd, 3) < 0)
+    {
+        perror("Error listening socket");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Socket listening...\n");
+
+    // Acept connections!
+    struct sockaddr_in client_addr;
+    int addrlen = sizeof(client_addr);
+    int new_socket;
+
+    if ((new_socket = accept(sockfd, (struct sockaddr*)&client_addr, (socklen_t*)&addrlen)) < 0)
+    {
+        perror("Error accepting connection");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
+    printf("Connection accepted from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
     // Clean up: Close the socket
     close(sockfd);
+    close(new_socket);
 
     return EXIT_SUCCESS;
 }
